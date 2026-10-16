@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Governed Coding Agent — AI code fixes with verifiable evidence trails. Built with NVIDIA Nemotron on Nebius Token Factory.">
+    <title>Governed Coding Agent</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🔍</span>
+                    <h1>Governed Coding Agent</h1>
+                </div>
+                <p class="tagline">AI code fixes with verifiable evidence trails</p>
+                <div class="badges">
+                    <span class="badge badge-nvidia">NVIDIA Nemotron</span>
+                    <span class="badge badge-nebius">Nebius Token Factory</span>
+                    <span class="badge badge-tavily">Tavily Grounding</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Input Section -->
+            <section class="input-section">
+                <div class="card">
+                    <h2>Resolve a GitHub Issue</h2>
+                    <p>Paste a GitHub issue URL and the agent will analyze it, generate a fix, run tests, and open a PR — with a full evidence trail.</p>
+                    <form id="resolve-form">
+                        <div class="input-group">
+                            <input
+                                type="url"
+                                id="issue-url"
+                                placeholder="https://github.com/owner/repo/issues/42"
+                                required
+                                autocomplete="off"
+                            >
+                            <button type="submit" id="submit-btn">
+                                <span class="btn-text">Resolve Issue</span>
+                                <span class="btn-spinner" style="display:none;">⏳</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Status Section -->
+            <section id="status-section" class="status-section" style="display:none;">
+                <div class="card">
+                    <h2>Agent Status</h2>
+                    <div class="pipeline">
+                        <div class="pipeline-step" data-step="analyzing">
+                            <div class="step-icon">🔎</div>
+                            <div class="step-label">Analyzing Issue</div>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-step" data-step="generating">
+                            <div class="step-icon">💻</div>
+                            <div class="step-label">Generating Code</div>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-step" data-step="testing">
+                            <div class="step-icon">🧪</div>
+                            <div class="step-label">Running Tests</div>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-step" data-step="report">
+                            <div class="step-icon">📋</div>
+                            <div class="step-label">Verification</div>
+                        </div>
+                        <div class="pipeline-connector"></div>
+                        <div class="pipeline-step" data-step="pr">
+                            <div class="step-icon">🔀</div>
+                            <div class="step-label">Creating PR</div>
+                        </div>
+                    </div>
+                    <div id="status-message" class="status-message"></div>
+                </div>
+            </section>
+
+            <!-- Result Section -->
+            <section id="result-section" class="result-section" style="display:none;">
+                <div class="card">
+                    <div class="result-header">
+                        <h2 id="result-title">✅ Issue Resolved</h2>
+                        <a id="pr-link" href="#" target="_blank" class="pr-link">View Pull Request →</a>
+                    </div>
+
+                    <!-- Trust Score -->
+                    <div id="trust-score" class="trust-score">
+                        <div class="score-circle">
+                            <span id="score-value">0</span>%
+                        </div>
+                        <div class="score-label">Trust Score</div>
+                    </div>
+
+                    <!-- Report -->
+                    <div id="report-container" class="report-container">
+                        <h3>Verification Report</h3>
+                        <div id="report-content" class="report-content"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Built for the <strong>Nebius × NVIDIA Global AI Hackathon</strong> · Powered by Nemotron + Token Factory + Tavily</p>
+        </footer>
+    </div>
+
+    <script>
+        const form = document.getElementById('resolve-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const statusSection = document.getElementById('status-section');
+        const resultSection = document.getElementById('result-section');
+
+        let currentRunId = null;
+        let pollInterval = null;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const issueUrl = document.getElementById('issue-url').value.trim();
+            if (!issueUrl) return;
+
+            // Reset UI.
+            submitBtn.querySelector('.btn-text').style.display = 'none';
+            submitBtn.querySelector('.btn-spinner').style.display = 'inline';
+            submitBtn.disabled = true;
+            statusSection.style.display = 'block';
+            resultSection.style.display = 'none';
+            resetPipeline();
+
+            try {
+                const resp = await fetch('/api/resolve-issue', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ issue_url: issueUrl }),
+                });
+
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Failed to start agent');
+
+                currentRunId = data.run_id;
+                document.getElementById('status-message').textContent = 'Agent run started...';
+                startPolling();
+            } catch (err) {
+                alert('Error: ' + err.message);
+                resetButton();
+            }
+        });
+
+        function startPolling() {
+            pollInterval = setInterval(async () => {
+                if (!currentRunId) return;
+
+                try {
+                    const resp = await fetch(`/api/status/${currentRunId}`);
+                    const data = await resp.json();
+
+                    updatePipeline(data.status);
+                    document.getElementById('status-message').textContent = `Status: ${data.status}`;
+
+                    if (data.status.includes('Completed')) {
+                        clearInterval(pollInterval);
+                        await showResult(data);
+                        resetButton();
+                    } else if (data.status.includes('Failed')) {
+                        clearInterval(pollInterval);
+                        document.getElementById('status-message').textContent = `❌ ${data.status}`;
+                        resetButton();
+                    }
+                } catch (err) {
+                    console.error('Polling error:', err);
+                }
+            }, 2000);
+        }
+
+        function updatePipeline(status) {
+            const steps = document.querySelectorAll('.pipeline-step');
+            const statusMap = {
+                'AnalyzingIssue': 0,
+                'GeneratingCode': 1,
+                'ExecutingTests': 2,
+                'GeneratingReport': 3,
+                'CreatingPr': 4,
+                'Completed': 5,
+            };
+
+            // Find the current step index.
+            let currentIdx = -1;
+            for (const [key, idx] of Object.entries(statusMap)) {
+                if (status.includes(key)) {
+                    currentIdx = idx;
+                    break;
+                }
+            }
+            if (status.includes('FixingCode')) currentIdx = 2;
+
+            steps.forEach((step, idx) => {
+                step.classList.remove('active', 'done');
+                if (idx < currentIdx) step.classList.add('done');
+                else if (idx === currentIdx) step.classList.add('active');
+            });
+        }
+
+        function resetPipeline() {
+            document.querySelectorAll('.pipeline-step').forEach(s => {
+                s.classList.remove('active', 'done');
+            });
+        }
+
+        async function showResult(data) {
+            resultSection.style.display = 'block';
+
+            if (data.pr_url) {
+                document.getElementById('pr-link').href = data.pr_url;
+                document.getElementById('pr-link').textContent = `View Pull Request →`;
+            }
+
+            if (data.has_report) {
+                try {
+                    const reportResp = await fetch(`/api/report/${currentRunId}`);
+                    const report = await reportResp.json();
+
+                    document.getElementById('score-value').textContent =
+                        Math.round(report.summary.trust_score);
+
+                    // Render claims.
+                    let html = '<table class="claims-table"><tr><th>Claim</th><th>Status</th><th>Evidence</th></tr>';
+                    for (const claim of report.claims) {
+                        const statusEmoji = { Verified: '✅', Refuted: '❌', Unverified: '⚠️', Skipped: '⏭️' };
+                        const evidenceCount = report.evidence_links.filter(l => l.claim_id === claim.id).length;
+                        html += `<tr>
+                            <td>${claim.statement}</td>
+                            <td>${statusEmoji[claim.verified] || '❓'} ${claim.verified}</td>
+                            <td>${evidenceCount} artifact(s)</td>
+                        </tr>`;
+                    }
+                    html += '</table>';
+
+                    html += `<p class="artifact-count">📦 ${report.artifacts.length} artifacts recorded</p>`;
+
+                    document.getElementById('report-content').innerHTML = html;
+                } catch (err) {
+                    console.error('Failed to load report:', err);
+                }
+            }
+        }
+
+        function resetButton() {
+            submitBtn.querySelector('.btn-text').style.display = 'inline';
+            submitBtn.querySelector('.btn-spinner').style.display = 'none';
+            submitBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>

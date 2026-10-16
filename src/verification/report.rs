@@ -1,0 +1,176 @@
+use crate::verification::evidence::*;
+
+/// Generates human-readable Markdown verification reports.
+pub struct ReportGenerator;
+
+impl ReportGenerator {
+    /// Render the full verification report as Markdown.
+    pub fn to_markdown(report: &VerificationReport) -> String {
+        let mut md = String::with_capacity(4096);
+
+        // ── Header ──
+        md.push_str("# 🔍 Verification Report\n\n");
+        md.push_str(&format!("**Run ID:** `{}`  \n", report.run_id));
+        md.push_str(&format!("**Issue:** [{}]({})  \n", report.issue_title, report.issue_url));
+        md.push_str(&format!(
+            "**Generated:** {}  \n\n",
+            report.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+        ));
+
+        // ── Trust Score ──
+        md.push_str("---\n\n## 📊 Trust Score\n\n");
+        md.push_str(&format!(
+            "| Metric | Value |\n|---|---|\n\
+             | Total Claims | {} |\n\
+             | {} Verified | {} |\n\
+             | {} Refuted | {} |\n\
+             | {} Unverified | {} |\n\
+             | {} Skipped | {} |\n\
+             | **Trust Score** | **{:.1}%** |\n\n",
+            report.summary.total_claims,
+            VerificationStatus::Verified.emoji(),
+            report.summary.verified,
+            VerificationStatus::Refuted.emoji(),
+            report.summary.refuted,
+            VerificationStatus::Unverified.emoji(),
+            report.summary.unverified,
+            VerificationStatus::Skipped.emoji(),
+            report.summary.skipped,
+            report.summary.trust_score,
+        ));
+
+        // ── Claims with Evidence ──
+        md.push_str("---\n\n## 📋 Claims & Evidence\n\n");
+
+        for (i, claim) in report.claims.iter().enumerate() {
+            md.push_str(&format!(
+                "### Claim {}: {} {}\n\n",
+                i + 1,
+                claim.verified.emoji(),
+                claim.statement
+            ));
+            md.push_str(&format!(
+                "- **Category:** {}  \n",
+                claim.category.label()
+            ));
+            md.push_str(&format!(
+                "- **Status:** {}  \n\n",
+                claim.verified.label()
+            ));
+
+            // Find linked evidence.
+            let links: Vec<&EvidenceLink> = report
+                .evidence_links
+                .iter()
+                .filter(|l| l.claim_id == claim.id)
+                .collect();
+
+            if links.is_empty() {
+                md.push_str("> ⚠️ No evidence artifacts linked to this claim.\n\n");
+            } else {
+                md.push_str("**Evidence:**\n\n");
+                for link in &links {
+                    if let Some(artifact) = report.artifacts.iter().find(|a| a.id == link.artifact_id)
+                    {
+                        let rel_icon = match link.relationship {
+                            EvidenceRelationship::Supports => "🟢",
+                            EvidenceRelationship::Contradicts => "🔴",
+                            EvidenceRelationship::Context => "🔵",
+                        };
+
+                        md.push_str(&format!(
+                            "- {} **{}** {} (`sha256:{}`)\n",
+                            rel_icon,
+                            artifact.kind.label(),
+                            artifact.kind.emoji(),
+                            &artifact.sha256[..12]
+                        ));
+                        md.push_str(&format!("  - {}\n", link.explanation));
+
+                        if let Some(url) = &artifact.source_url {
+                            md.push_str(&format!("  - 🔗 [Source]({})\n", url));
+                        }
+
+                        // Show a truncated preview of the artifact content.
+                        let preview = truncate_content(&artifact.content, 500);
+                        md.push_str("  <details><summary>Preview</summary>\n\n");
+                        md.push_str(&format!("  ```\n{}\n  ```\n\n", preview));
+                        md.push_str("  </details>\n\n");
+                    }
+                }
+            }
+        }
+
+        // ── Artifact Registry ──
+        md.push_str("---\n\n## 🗂️ Artifact Registry\n\n");
+        md.push_str("| # | Kind | SHA-256 (first 16) | Source | Timestamp |\n");
+        md.push_str("|---|------|---------------------|--------|------------|\n");
+
+        for (i, artifact) in report.artifacts.iter().enumerate() {
+            let source = artifact
+                .source_url
+                .as_deref()
+                .map(|u| format!("[link]({})", u))
+                .unwrap_or_else(|| "—".into());
+
+            md.push_str(&format!(
+                "| {} | {} {} | `{}` | {} | {} |\n",
+                i + 1,
+                artifact.kind.emoji(),
+                artifact.kind.label(),
+                &artifact.sha256[..16],
+                source,
+                artifact.created_at.format("%H:%M:%S"),
+            ));
+        }
+
+        md.push_str("\n---\n\n");
+        md.push_str("*Report generated by Governed Coding Agent — every claim is backed by checkable evidence.*\n");
+
+        md
+    }
+
+    /// Render a compact summary suitable for a GitHub PR description.
+    pub fn to_pr_summary(report: &VerificationReport) -> String {
+        let mut md = String::with_capacity(1024);
+
+        md.push_str("## 🔍 Governed Coding Agent — Verification Summary\n\n");
+        md.push_str(&format!(
+            "**Trust Score: {:.1}%** ({}/{} claims verified)\n\n",
+            report.summary.trust_score, report.summary.verified, report.summary.total_claims
+        ));
+
+        md.push_str("| Claim | Status | Evidence |\n|---|---|---|\n");
+
+        for claim in &report.claims {
+            let evidence_count = report
+                .evidence_links
+                .iter()
+                .filter(|l| l.claim_id == claim.id)
+                .count();
+
+            md.push_str(&format!(
+                "| {} | {} | {} artifact(s) |\n",
+                claim.statement,
+                claim.verified.emoji(),
+                evidence_count
+            ));
+        }
+
+        md.push_str(&format!(
+            "\n<details><summary>Full Verification Report</summary>\n\n{}\n</details>\n",
+            Self::to_markdown(report)
+        ));
+
+        md
+    }
+}
+
+/// Truncate content to `max_len` characters, adding "..." if truncated.
+fn truncate_content(content: &str, max_len: usize) -> String {
+    if content.len() <= max_len {
+        content.to_string()
+    } else {
+        format!("{}...\n[truncated — full content in artifact]", &content[..max_len])
+    }
+}

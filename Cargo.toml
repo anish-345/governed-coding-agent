@@ -1,0 +1,59 @@
+[package]
+name = "governed-coding-agent"
+version = "0.1.0"
+edition = "2021"
+authors = ["Anish"]
+description = "An AI coding agent with a verifiable evidence trail. Uses NVIDIA Nemotron via Nebius Token Factory."
+license = "Apache-2.0"
+repository = "https://github.com/YOUR_USERNAME/governed-coding-agent"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Web framework
+axum = { version = "0.7", features = ["macros"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# GitHub API
+octocrab = "0.41"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Environment / config
+dotenvy = "0.15"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.22"
+
+# Async traits
+async-trait = "0.1"
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio-test = "0.4"
+
+[profile.release]
+opt-level = 3
+lto = true
