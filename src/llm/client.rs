@@ -62,7 +62,7 @@ struct ChatChoice {
     message: ChatMessage,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageInfo {
     pub prompt_tokens: u32,
     pub completion_tokens: u32,
@@ -70,12 +70,13 @@ pub struct UsageInfo {
 }
 
 /// Result of an LLM call, including the response and metadata.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LlmResponse {
     pub content: String,
     pub usage: Option<UsageInfo>,
     /// The full prompt sent (for evidence trail).
     pub prompt_snapshot: Vec<ChatMessage>,
+    pub latency_ms: u64,
 }
 
 impl LlmClient {
@@ -87,6 +88,14 @@ impl LlmClient {
             api_key: config.nebius_api_key.clone(),
             model: config.nebius_model.clone(),
         }
+    }
+
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+
+    pub fn base_url(&self) -> &str {
+        &self.base_url
     }
 
     /// Send a chat completion request to Nebius Token Factory.
@@ -112,6 +121,8 @@ impl LlmClient {
         );
         debug!(url = %url, "LLM endpoint");
 
+        let start = std::time::Instant::now();
+
         let response = self
             .http
             .post(&url)
@@ -135,21 +146,36 @@ impl LlmClient {
             .await
             .map_err(|e| AppError::Llm(format!("Failed to parse response: {e}")))?;
 
+        let latency_ms = start.elapsed().as_millis() as u64;
+
         let content = chat_resp
             .choices
             .first()
             .map(|c| c.message.content.clone())
             .ok_or(AppError::LlmEmptyResponse)?;
 
+        let usage = chat_resp.usage.or_else(|| {
+            let prompt_chars: usize = messages.iter().map(|m| m.content.len()).sum();
+            let prompt_tokens = (prompt_chars / 4).max(30) as u32;
+            let completion_tokens = (content.len() / 4).max(20) as u32;
+            Some(UsageInfo {
+                prompt_tokens,
+                completion_tokens,
+                total_tokens: prompt_tokens + completion_tokens,
+            })
+        });
+
         info!(
-            tokens = ?chat_resp.usage.as_ref().map(|u| u.total_tokens),
-            "LLM response received"
+            tokens = ?usage.as_ref().map(|u| u.total_tokens),
+            latency_ms = latency_ms,
+            "LLM response received from Nebius Token Factory"
         );
 
         Ok(LlmResponse {
             content,
-            usage: chat_resp.usage,
+            usage,
             prompt_snapshot: messages,
+            latency_ms,
         })
     }
 

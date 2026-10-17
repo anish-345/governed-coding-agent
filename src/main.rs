@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use governed_coding_agent::agent;
 use governed_coding_agent::api;
 use governed_coding_agent::config::{AppConfig, SandboxBackend};
-use governed_coding_agent::sandbox::{DockerSandbox, NebiusSandbox, SandboxExecutor};
+use governed_coding_agent::sandbox::{DockerSandbox, HostSandbox, NebiusSandbox, SandboxExecutor};
 use governed_coding_agent::verification;
 use std::sync::Arc;
 use tracing::info;
@@ -61,8 +61,12 @@ async fn main() -> anyhow::Result<()> {
             ))
         }
         SandboxBackend::Docker => {
-            info!("Using Docker sandbox (local fallback)");
+            info!("Using Docker sandbox (with Host fallback)");
             Arc::new(DockerSandbox::default())
+        }
+        SandboxBackend::Host => {
+            info!("Using Host Process Sandbox");
+            Arc::new(HostSandbox::new())
         }
     };
 

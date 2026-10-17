@@ -32,6 +32,8 @@ pub enum SandboxBackend {
     Nebius,
     /// Local Docker containers (fallback)
     Docker,
+    /// Local Host Process (isolated temp directory)
+    Host,
 }
 
 impl AppConfig {
@@ -48,8 +50,9 @@ impl AppConfig {
                 "https://api.tokenfactory.nebius.com/sandboxes",
             ),
             nebius_project_id: env_or("NEBIUS_PROJECT_ID", ""),
-            sandbox_backend: match env_or("SANDBOX_BACKEND", "docker").as_str() {
+            sandbox_backend: match env_or("SANDBOX_BACKEND", "docker").to_lowercase().as_str() {
                 "nebius" => SandboxBackend::Nebius,
+                "host" => SandboxBackend::Host,
                 _ => SandboxBackend::Docker,
             },
 

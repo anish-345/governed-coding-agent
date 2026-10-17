@@ -43,7 +43,7 @@ impl CodeGenerator {
         plan_json: &str,
         existing_code: &str,
         collector: &EvidenceCollector,
-    ) -> Result<CodeChanges> {
+    ) -> Result<(CodeChanges, crate::llm::LlmResponse)> {
         info!("Phase 2: Generating code changes");
 
         let user_prompt = Prompts::codegen_user(plan_json, existing_code);
@@ -98,7 +98,7 @@ impl CodeGenerator {
             "Code generation complete"
         );
 
-        Ok(changes)
+        Ok((changes, response))
     }
 
     /// Generate a fix for code that failed tests/compilation.
@@ -107,7 +107,7 @@ impl CodeGenerator {
         previous_code: &str,
         error_output: &str,
         collector: &EvidenceCollector,
-    ) -> Result<CodeChanges> {
+    ) -> Result<(CodeChanges, crate::llm::LlmResponse)> {
         info!("Generating fix for failed code");
 
         let user_prompt = Prompts::fix_user(previous_code, error_output);
@@ -137,7 +137,7 @@ impl CodeGenerator {
             ));
         }
 
-        Ok(changes)
+        Ok((changes, response))
     }
 
     /// Convert code changes into a HashMap of path → content for the sandbox.

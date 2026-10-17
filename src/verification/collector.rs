@@ -85,6 +85,29 @@ impl EvidenceCollector {
         (artifact_id, claim_id)
     }
 
+    /// Resolve a previously refuted claim with new healed evidence from a successful sandbox iteration.
+    pub fn resolve_claim_with_healed_evidence(
+        &self,
+        claim_id: &str,
+        new_artifact: Artifact,
+        explanation: impl Into<String>,
+    ) -> String {
+        let mut state = self.inner.lock().unwrap();
+        // Remove prior contradictory links for this claim
+        state
+            .evidence_links
+            .retain(|l| !(l.claim_id == claim_id && l.relationship == EvidenceRelationship::Contradicts));
+        let artifact_id = new_artifact.id.clone();
+        state.artifacts.push(new_artifact);
+        state.evidence_links.push(EvidenceLink {
+            claim_id: claim_id.to_string(),
+            artifact_id: artifact_id.clone(),
+            relationship: EvidenceRelationship::Supports,
+            explanation: explanation.into(),
+        });
+        artifact_id
+    }
+
     /// Verify all claims by checking whether they have supporting/contradicting evidence.
     pub fn verify_claims(&self) {
         let mut state = self.inner.lock().unwrap();

@@ -29,6 +29,10 @@ pub struct StatusResponse {
     pub status: String,
     pub pr_url: Option<String>,
     pub has_report: bool,
+    pub is_pr_preview: bool,
+    pub pr_preview: Option<crate::agent::PrPreview>,
+    pub iterations: Vec<crate::agent::IterationRecord>,
+    pub telemetry: Option<crate::agent::Telemetry>,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,6 +75,10 @@ pub async fn get_status(
         status: format!("{:?}", run.status),
         pr_url: run.pr_url,
         has_report: run.report.is_some(),
+        is_pr_preview: run.is_pr_preview,
+        pr_preview: run.pr_preview,
+        iterations: run.iterations,
+        telemetry: run.telemetry,
     }))
 }
 
