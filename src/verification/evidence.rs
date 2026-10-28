@@ -170,6 +170,10 @@ pub struct VerificationReport {
     pub artifacts: Vec<Artifact>,
     pub evidence_links: Vec<EvidenceLink>,
     pub summary: ReportSummary,
+    #[serde(default)]
+    pub merkle_root: String,
+    #[serde(default)]
+    pub attestation_signature: String,
 }
 
 /// Aggregate statistics for the report.
@@ -287,4 +291,29 @@ pub fn compute_sha256(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());
     hex::encode(hasher.finalize())
+}
+
+/// Compute a deterministic Merkle Root from a slice of SHA-256 hashes.
+pub fn compute_merkle_root(artifact_shas: &[String]) -> String {
+    if artifact_shas.is_empty() {
+        return compute_sha256("EMPTY_EVIDENCE_TREE");
+    }
+    let mut current_level = artifact_shas.to_vec();
+    current_level.sort(); // Canonical ordering
+
+    while current_level.len() > 1 {
+        let mut next_level = Vec::with_capacity(current_level.len().div_ceil(2));
+        for chunk in current_level.chunks(2) {
+            if chunk.len() == 2 {
+                let combined = format!("{}{}", chunk[0], chunk[1]);
+                next_level.push(compute_sha256(&combined));
+            } else {
+                let combined = format!("{}{}", chunk[0], chunk[0]);
+                next_level.push(compute_sha256(&combined));
+            }
+        }
+        current_level = next_level;
+    }
+
+    current_level[0].clone()
 }

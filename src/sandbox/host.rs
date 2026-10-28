@@ -49,12 +49,32 @@ name = "sandbox-verification"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 "#;
             let toml_path = sandbox_dir.join("Cargo.toml");
             tokio::fs::write(&toml_path, default_cargo_toml)
                 .await
                 .map_err(|e| AppError::Sandbox(format!("Failed to write default Cargo.toml: {e}")))?;
+        }
+
+        // Ensure src/lib.rs exists if no root target exists in files
+        if !files.keys().any(|k| k == "src/lib.rs" || k == "src/main.rs") {
+            let src_dir = sandbox_dir.join("src");
+            let _ = tokio::fs::create_dir_all(&src_dir).await;
+            let mut root_lib = String::from("// Sandbox root library\n");
+            for k in files.keys() {
+                if k.starts_with("src/") && k.ends_with(".rs") && k != "src/lib.rs" {
+                    let mod_name = k.strip_prefix("src/").unwrap().strip_suffix(".rs").unwrap();
+                    root_lib.push_str(&format!("pub mod {};\n", mod_name));
+                }
+            }
+            let _ = tokio::fs::write(src_dir.join("lib.rs"), root_lib).await;
         }
 
         for (rel_path, content) in files {

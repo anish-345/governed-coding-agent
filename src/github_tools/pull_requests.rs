@@ -3,8 +3,10 @@ use octocrab::Octocrab;
 use tracing::info;
 
 /// Manages commits and pull requests via the GitHub API.
+#[derive(Clone)]
 pub struct PrManager {
     client: Octocrab,
+    token: String,
 }
 
 impl PrManager {
@@ -14,7 +16,10 @@ impl PrManager {
             .build()
             .map_err(|e| AppError::GitHub(format!("Failed to create Octocrab client: {e}")))?;
 
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            token: token.to_string(),
+        })
     }
 
     /// Commit a file to a branch via the GitHub Contents API.
@@ -70,7 +75,7 @@ impl PrManager {
 
         let response = reqwest::Client::new()
             .put(&url)
-            .header("Authorization", format!("Bearer {}", get_token(&self.client)))
+            .header("Authorization", format!("Bearer {}", self.token))
             .header("User-Agent", "governed-coding-agent")
             .header("Accept", "application/vnd.github.v3+json")
             .json(&body)

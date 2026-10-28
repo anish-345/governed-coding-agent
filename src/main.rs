@@ -26,6 +26,10 @@ enum Commands {
         /// GitHub issue URL (e.g., https://github.com/owner/repo/issues/42)
         #[arg(long)]
         issue_url: String,
+
+        /// Optional GitHub Personal Access Token (for private or restricted repos)
+        #[arg(long)]
+        token: Option<String>,
     },
 }
 
@@ -78,11 +82,15 @@ async fn main() -> anyhow::Result<()> {
     );
 
     match cli.command {
-        Some(Commands::Resolve { issue_url }) => {
+        Some(Commands::Resolve { issue_url, token }) => {
             // CLI mode: resolve a single issue.
-            info!(issue_url = %issue_url, "CLI mode: resolving issue");
+            info!(
+                issue_url = %issue_url,
+                has_custom_token = token.is_some(),
+                "CLI mode: resolving issue"
+            );
 
-            let run_id = orchestrator.start_run(issue_url);
+            let run_id = orchestrator.start_run_with_token(issue_url, token);
             info!(run_id = %run_id, "Agent run started. Waiting for completion...");
 
             // Poll until done.

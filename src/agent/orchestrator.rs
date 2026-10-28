@@ -78,6 +78,8 @@ pub struct Telemetry {
 pub struct AgentRunState {
     pub run_id: String,
     pub issue_url: String,
+    #[serde(default)]
+    pub custom_token: Option<String>,
     pub status: AgentRunStatus,
     pub pr_url: Option<String>,
     pub report: Option<VerificationReport>,
@@ -155,11 +157,21 @@ impl AgentOrchestrator {
     /// Main entry point: resolve a GitHub issue end-to-end.
     /// Returns the run_id immediately; work happens in the background.
     pub fn start_run(self: &Arc<Self>, issue_url: String) -> String {
+        self.start_run_with_token(issue_url, None)
+    }
+
+    /// Main entry point with an optional user-supplied GitHub token (e.g. for private repos).
+    pub fn start_run_with_token(
+        self: &Arc<Self>,
+        issue_url: String,
+        custom_token: Option<String>,
+    ) -> String {
         let run_id = Uuid::new_v4().to_string();
 
         let state = AgentRunState {
             run_id: run_id.clone(),
             issue_url: issue_url.clone(),
+            custom_token,
             status: AgentRunStatus::Queued,
             pr_url: None,
             report: None,
@@ -213,9 +225,27 @@ impl AgentOrchestrator {
     /// Execute the full agent pipeline.
     async fn execute_run(self: &Arc<Self>, run_id: &str) -> Result<()> {
         let run_start = std::time::Instant::now();
-        let issue_url = {
+        let (issue_url, custom_token) = {
             let runs = self.runs.lock().unwrap();
-            runs.get(run_id).unwrap().issue_url.clone()
+            let r = runs.get(run_id).unwrap();
+            (r.issue_url.clone(), r.custom_token.clone())
+        };
+
+        // Determine which GitHub client to use: custom token if provided, otherwise default config token
+        let (issue_fetcher, branch_manager, pr_manager) = match &custom_token {
+            Some(token) if !token.trim().is_empty() => {
+                info!("Using user-provided GitHub token for private/authenticated repository access");
+                (
+                    IssueFetcher::new(token.trim())?,
+                    BranchManager::new(token.trim())?,
+                    PrManager::new(token.trim())?,
+                )
+            }
+            _ => (
+                self.issue_fetcher.clone(),
+                self.branch_manager.clone(),
+                self.pr_manager.clone(),
+            ),
         };
 
         let mut prompt_tokens: u32 = 0;
@@ -227,7 +257,7 @@ impl AgentOrchestrator {
 
         // ── Fetch issue ──
         self.update_status(run_id, AgentRunStatus::AnalyzingIssue);
-        let issue = self.issue_fetcher.fetch(&owner, &repo, issue_number).await?;
+        let issue = issue_fetcher.fetch(&owner, &repo, issue_number).await?;
 
         // ── Create evidence collector ──
         let collector = EvidenceCollector::new(run_id, &issue.url, &issue.title);
@@ -250,10 +280,21 @@ impl AgentOrchestrator {
         // ── Phase 2: Initial Code Generation ──
         self.update_status(run_id, AgentRunStatus::GeneratingCode);
 
-        let existing_code = format!(
-            "Repository: {}/{}\nFiles to modify: {:?}",
+        let mut existing_code = format!(
+            "Repository: {}/{}\nFiles to modify: {:?}\n\n",
             owner, repo, plan.files_to_modify
         );
+
+        // Fetch real file contents from GitHub for all target files
+        for file_path in &plan.files_to_modify {
+            if let Some(content) = issue_fetcher.fetch_file_content(&owner, &repo, file_path).await {
+                info!(path = %file_path, "Fetched existing file content from repository");
+                existing_code.push_str(&format!("--- FILE: {} ---\n{}\n\n", file_path, content));
+            }
+        }
+
+        // Fetch repository's real Cargo.toml if available
+        let repo_cargo_toml = issue_fetcher.fetch_file_content(&owner, &repo, "Cargo.toml").await;
 
         let (mut changes, codegen_resp) = self
             .codegen
@@ -268,7 +309,6 @@ impl AgentOrchestrator {
 
         // ── Phase 3: Self-Healing Sandbox Loop ("Refuted -> Verified" Progression) ──
         const MAX_RETRIES: u32 = 3;
-        let is_demo_scenario_1 = issue.number == 101 || issue_url.contains("101") || issue_url.contains("demo-1");
 
         let mut iterations: Vec<IterationRecord> = Vec::new();
 
@@ -281,39 +321,16 @@ impl AgentOrchestrator {
                 self.update_status(run_id, AgentRunStatus::ExecutingTests);
             }
 
-            let file_map = CodeGenerator::to_file_map(&changes);
+            let mut file_map = CodeGenerator::to_file_map(&changes);
+            if !file_map.contains_key("Cargo.toml") {
+                if let Some(toml_content) = &repo_cargo_toml {
+                    file_map.insert("Cargo.toml".into(), toml_content.clone());
+                }
+            }
             let sandbox_id = self.sandbox.prepare(&file_map).await?;
 
-            let mut results = self.sandbox.run_verification_suite(&sandbox_id).await?;
+            let results = self.sandbox.run_verification_suite(&sandbox_id).await?;
             let _ = self.sandbox.cleanup(&sandbox_id).await;
-
-            // In Demo Scenario 1 (Off-by-One Bug Demo), deliberately simulate the initial flaw on attempt 0
-            // so judges immediately witness the Refuted -> Verified progression!
-            if is_demo_scenario_1 && attempt == 0 {
-                results = vec![
-                    crate::sandbox::ExecutionResult {
-                        command: "cargo check 2>&1".into(),
-                        stdout: "    Checking sample-repo v0.1.0\n    Finished `dev` profile [unoptimized + debuginfo]".into(),
-                        stderr: String::new(),
-                        exit_code: 0,
-                        duration_ms: 180,
-                    },
-                    crate::sandbox::ExecutionResult {
-                        command: "cargo clippy -- -D warnings 2>&1".into(),
-                        stdout: "    Checking sample-repo v0.1.0\n    Finished `dev` profile [unoptimized + debuginfo]".into(),
-                        stderr: String::new(),
-                        exit_code: 0,
-                        duration_ms: 210,
-                    },
-                    crate::sandbox::ExecutionResult {
-                        command: "cargo test 2>&1".into(),
-                        stdout: "running 1 test\ntest tests::test_sliding_window_burst ... FAILED\n\nfailures:\n\n---- tests::test_sliding_window_burst stdout ----\nthread 'tests::test_sliding_window_burst' panicked at 'assertion `left == right` failed: expected slice length 10, got 9 due to off-by-one window_end <= capacity computation'\n\nfailures:\n    tests::test_sliding_window_burst\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s\n".into(),
-                        stderr: "error: test failed, to rerun pass `--test sliding_window`\n".into(),
-                        exit_code: 1,
-                        duration_ms: 340,
-                    },
-                ];
-            }
 
             let mut all_passed = true;
             let mut failed_command_output = String::new();
@@ -350,7 +367,7 @@ impl AgentOrchestrator {
                     } else {
                         all_passed = false;
                         failed_command_output.push_str(&result.full_output());
-                        failed_command_output.push_str("\n");
+                        failed_command_output.push('\n');
                         collector.link_evidence(EvidenceLink::contradicts(
                             &claim.id,
                             &artifact_id,
@@ -446,6 +463,8 @@ impl AgentOrchestrator {
 
         let pr_result = self
             .publish_github_pr(
+                &pr_manager,
+                &branch_manager,
                 &owner,
                 &repo,
                 issue_number,
@@ -525,8 +544,11 @@ impl AgentOrchestrator {
     }
 
     /// Internal helper to attempt live GitHub branch creation, commit, and PR.
+    #[allow(clippy::too_many_arguments)]
     async fn publish_github_pr(
         &self,
+        pr_mgr: &PrManager,
+        branch_mgr: &BranchManager,
         owner: &str,
         repo: &str,
         issue_number: u64,
@@ -535,14 +557,13 @@ impl AgentOrchestrator {
         report_md: &str,
         pr_body: &str,
     ) -> Result<String> {
-        let branch = self
-            .branch_manager
+        let branch = branch_mgr
             .create_branch(owner, repo, issue_number)
             .await?;
 
         for file in &changes.files {
             if file.action != "delete" {
-                self.pr_manager
+                pr_mgr
                     .commit_file(
                         owner,
                         repo,
@@ -555,7 +576,7 @@ impl AgentOrchestrator {
             }
         }
 
-        self.pr_manager
+        pr_mgr
             .commit_file(
                 owner,
                 repo,
@@ -566,8 +587,7 @@ impl AgentOrchestrator {
             )
             .await?;
 
-        let pr_url = self
-            .pr_manager
+        let pr_url = pr_mgr
             .open_pr(
                 owner,
                 repo,

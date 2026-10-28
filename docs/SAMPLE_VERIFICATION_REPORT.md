@@ -2,21 +2,22 @@
 
 **Target Issue:** [nebius-community/sample-repo#101](https://github.com/nebius-community/sample-repo/issues/101)  
 **Run ID:** `run-b4819e-sample-101`  
-**Execution Timestamp:** 2026-10-19T08:45:00Z  
+**Execution Timestamp:** 2026-10-28T19:30:00Z  
 **Remediation Agent:** NVIDIA Nemotron-3 Super 120B on Nebius Token Factory  
 **Verification Engine:** Governed Coding Agent Trust Core v0.1.0  
 
 ---
 
-## 📊 Executive Verification Summary
+## 📊 Trust Score & Cryptographic Attestation
 
-| Metric | Score | Status |
-|---|---|---|
-| **Cryptographic Trust Score** | **100.0%** | ✅ **VERIFIED** |
-| Total Claims Evaluated | 3 | 3 Verified, 0 Refuted, 0 Unverified |
-| Self-Healing Iterations | 2 | Flaw caught in Iteration 1 ➜ Healed in Iteration 2 |
-| Artifacts Registered | 5 | Content-Addressed SHA-256 Hashes |
-| Governance Decision | **APPROVED FOR MERGE** | All verification constraints satisfied |
+| Metric | Value |
+|---|---|
+| Total Claims | 3 |
+| ✅ Verified | 3 |
+| ❌ Refuted | 0 |
+| **Trust Score** | **100.0%** |
+| **Merkle Root** | `3f8a42e189d2c56b7801aef021c345d98e721bc4598012da765e4321098fcba1` |
+| **Attestation Fingerprint** | `gca:ed25519:sha256:3f8a42e189d2c56b` |
 
 ---
 

@@ -17,8 +17,8 @@ impl ReportGenerator {
             report.created_at.format("%Y-%m-%d %H:%M:%S UTC")
         ));
 
-        // ── Trust Score ──
-        md.push_str("---\n\n## 📊 Trust Score\n\n");
+        // ── Trust Score & Attestation ──
+        md.push_str("---\n\n## 📊 Trust Score & Cryptographic Attestation\n\n");
         md.push_str(&format!(
             "| Metric | Value |\n|---|---|\n\
              | Total Claims | {} |\n\
@@ -26,7 +26,9 @@ impl ReportGenerator {
              | {} Refuted | {} |\n\
              | {} Unverified | {} |\n\
              | {} Skipped | {} |\n\
-             | **Trust Score** | **{:.1}%** |\n\n",
+             | **Trust Score** | **{:.1}%** |\n\
+             | **Merkle Root** | `{}` |\n\
+             | **Attestation Fingerprint** | `{}` |\n\n",
             report.summary.total_claims,
             VerificationStatus::Verified.emoji(),
             report.summary.verified,
@@ -37,6 +39,8 @@ impl ReportGenerator {
             VerificationStatus::Skipped.emoji(),
             report.summary.skipped,
             report.summary.trust_score,
+            report.merkle_root,
+            report.attestation_signature,
         ));
 
         // ── Claims with Evidence ──
@@ -136,8 +140,8 @@ impl ReportGenerator {
 
         md.push_str("## 🔍 Governed Coding Agent — Verification Summary\n\n");
         md.push_str(&format!(
-            "**Trust Score: {:.1}%** ({}/{} claims verified)\n\n",
-            report.summary.trust_score, report.summary.verified, report.summary.total_claims
+            "**Trust Score: {:.1}%** ({}/{} claims verified) · **Merkle Root:** `{}`\n\n",
+            report.summary.trust_score, report.summary.verified, report.summary.total_claims, report.merkle_root
         ));
 
         md.push_str("| Claim | Status | Evidence |\n|---|---|---|\n");

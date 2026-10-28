@@ -55,13 +55,19 @@ pub enum AppError {
     SerdeJson(#[from] serde_json::Error),
 
     #[error(transparent)]
-    Octocrab(#[from] octocrab::Error),
+    Octocrab(Box<octocrab::Error>),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
     #[error(transparent)]
     Other(#[from] anyhow::Error),
+}
+
+impl From<octocrab::Error> for AppError {
+    fn from(err: octocrab::Error) -> Self {
+        AppError::Octocrab(Box::new(err))
+    }
 }
 
 /// Convenience type alias used throughout the codebase.

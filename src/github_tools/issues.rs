@@ -14,9 +14,11 @@ pub struct IssueDetails {
     pub state: String,
 }
 
-/// Fetches issue details from GitHub.
+/// Fetches issue details and repository files from GitHub.
+#[derive(Clone)]
 pub struct IssueFetcher {
     client: Octocrab,
+    token: String,
 }
 
 impl IssueFetcher {
@@ -26,7 +28,47 @@ impl IssueFetcher {
             .build()
             .map_err(|e| AppError::GitHub(format!("Failed to create Octocrab client: {e}")))?;
 
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            token: token.to_string(),
+        })
+    }
+
+    /// Fetch raw file content from a repository (supports public repos and authenticated private repos).
+    pub async fn fetch_file_content(&self, owner: &str, repo: &str, path: &str) -> Option<String> {
+        let clean_path = path.trim_start_matches('/');
+
+        // 1. If authenticated with a token, use the GitHub Contents API directly (works for private & org repos)
+        if !self.token.is_empty() {
+            if let Ok(content_items) = self.client.repos(owner, repo).get_content().path(clean_path).send().await {
+                if let Some(item) = content_items.items.first() {
+                    if let Some(decoded) = item.decoded_content() {
+                        return Some(decoded);
+                    }
+                }
+            }
+        }
+
+        // 2. Try raw.githubusercontent.com for public repos
+        let branches = ["main", "master"];
+        for branch in branches {
+            let url = format!("https://raw.githubusercontent.com/{owner}/{repo}/{branch}/{clean_path}");
+            let req = reqwest::Client::new()
+                .get(&url)
+                .header("User-Agent", "governed-coding-agent");
+
+            if let Ok(resp) = req.send().await {
+                if resp.status().is_success() {
+                    if let Ok(text) = resp.text().await {
+                        if !text.is_empty() && !text.contains("404: Not Found") {
+                            return Some(text);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
     }
 
     /// Fetch a single issue by owner, repo, and issue number.

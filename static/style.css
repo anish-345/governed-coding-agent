@@ -1048,6 +1048,71 @@ body {
     to { opacity: 1; transform: scale(1); }
 }
 
+/* ─── Private Repo Toggle & Input ─── */
+.private-repo-toggle {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-color);
+}
+
+.toggle-link {
+    background: transparent;
+    border: none;
+    color: var(--accent-blue);
+    font-size: 0.84rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: var(--radius-sm);
+    transition: var(--transition);
+}
+
+.toggle-link:hover {
+    background: rgba(79, 140, 255, 0.1);
+    color: #93c5fd;
+}
+
+.token-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
+.token-input-group input {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    outline: none;
+    transition: var(--transition);
+}
+
+.token-input-group input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.25);
+}
+
+.token-hint {
+    font-size: 0.76rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.token-hint strong {
+    color: var(--text-secondary);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
     .logo h1 { font-size: 1.5rem; }

@@ -132,6 +132,23 @@ fn test_markdown_report_generation() {
     assert!(md.contains("Verification Report"));
     assert!(md.contains("Trust Score"));
     assert!(md.contains("100.0%"));
+    assert!(md.contains("Merkle Root"));
+    assert!(md.contains("Attestation Fingerprint"));
     assert!(md.contains("Updated API documentation"));
     assert!(md.contains("Artifact Registry"));
+}
+
+#[test]
+fn test_merkle_root_computation() {
+    use governed_coding_agent::verification::compute_merkle_root;
+
+    let shas = vec![
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+        "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb".to_string(),
+    ];
+    let root = compute_merkle_root(&shas);
+    assert_eq!(root.len(), 64);
+
+    let empty_root = compute_merkle_root(&[]);
+    assert_eq!(empty_root.len(), 64);
 }

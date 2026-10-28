@@ -41,8 +41,8 @@ impl AppConfig {
     /// Call `dotenvy::dotenv().ok()` before invoking this.
     pub fn from_env() -> Result<Self> {
         Ok(Self {
-            nebius_api_key: required_env("NEBIUS_API_KEY")?,
-            nebius_base_url: env_or("NEBIUS_BASE_URL", "https://api.tokenfactory.nebius.com/v1"),
+            nebius_api_key: env_or("NEBIUS_API_KEY", ""),
+            nebius_base_url: env_or("NEBIUS_BASE_URL", "https://api.studio.nebius.ai/v1"),
             nebius_model: env_or("NEBIUS_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
 
             nebius_sandbox_url: env_or(
@@ -50,19 +50,19 @@ impl AppConfig {
                 "https://api.tokenfactory.nebius.com/sandboxes",
             ),
             nebius_project_id: env_or("NEBIUS_PROJECT_ID", ""),
-            sandbox_backend: match env_or("SANDBOX_BACKEND", "docker").to_lowercase().as_str() {
+            sandbox_backend: match env_or("SANDBOX_BACKEND", "host").to_lowercase().as_str() {
                 "nebius" => SandboxBackend::Nebius,
-                "host" => SandboxBackend::Host,
-                _ => SandboxBackend::Docker,
+                "docker" => SandboxBackend::Docker,
+                _ => SandboxBackend::Host,
             },
 
             tavily_api_key: env_or("TAVILY_API_KEY", ""),
 
-            github_token: required_env("GITHUB_TOKEN")?,
-            github_repo: required_env("GITHUB_REPO")?,
+            github_token: env_or("GITHUB_TOKEN", ""),
+            github_repo: env_or("GITHUB_REPO", "nebius-community/sample-repo"),
 
             host: env_or("HOST", "0.0.0.0"),
-            port: env_or("PORT", "3000")
+            port: env_or("PORT", "8080")
                 .parse()
                 .map_err(|_| AppError::Config("PORT must be a valid u16".into()))?,
         })

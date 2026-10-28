@@ -54,3 +54,26 @@ async fn test_status_endpoint_not_found() {
     let resp = app.oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn test_resolve_issue_with_custom_token_endpoint() {
+    let config = create_test_config();
+    let sandbox = Arc::new(DockerSandbox::default());
+    let orchestrator = Arc::new(AgentOrchestrator::new(config, sandbox).unwrap());
+    let app = create_router(orchestrator);
+
+    let payload = serde_json::json!({
+        "issue_url": "https://github.com/my-org/private-repo/issues/10",
+        "github_token": "ghp_mock_token_for_private_repo"
+    });
+
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/resolve-issue")
+        .header("content-type", "application/json")
+        .body(Body::from(payload.to_string()))
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}

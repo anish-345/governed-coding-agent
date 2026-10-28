@@ -3,6 +3,7 @@ use octocrab::Octocrab;
 use tracing::info;
 
 /// Manages Git branches via the GitHub API.
+#[derive(Clone)]
 pub struct BranchManager {
     client: Octocrab,
 }

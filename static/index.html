@@ -19,7 +19,7 @@
                     <span class="logo-icon">🛡️</span>
                     <h1>Governed Coding Agent</h1>
                 </div>
-                <p class="tagline">Judge-Proof AI Code Remediation with Cryptographic Evidence Trails</p>
+                <p class="tagline">An AI coding agent that actually proves its code works — runs tests in a sandbox, heals its own bugs, and shows you the proof.</p>
                 <div class="badges">
                     <span class="badge badge-nvidia">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 4.5v15l10-7.5-10-7.5z"/></svg>
@@ -43,7 +43,7 @@
             <section class="input-section">
                 <div class="card">
                     <h2>Resolve a GitHub Issue</h2>
-                    <p class="subtitle">Enter any public GitHub issue URL. The agent retrieves context, searches external docs via Tavily, writes a fix with Nemotron, validates it in a secure sandbox, self-heals any test regressions, and produces a SHA-256 evidence trail.</p>
+                    <p class="subtitle">Enter any public GitHub issue URL. The agent reads the issue, looks up official documentation, writes the fix with NVIDIA Nemotron, runs the real tests in an isolated sandbox, automatically fixes any errors, and shows you the proof.</p>
                     
                     <form id="resolve-form">
                         <div class="input-group">
@@ -58,6 +58,27 @@
                                 <span class="btn-text">Resolve Issue 🚀</span>
                                 <span class="btn-spinner" style="display:none;">⏳ Remediating...</span>
                             </button>
+                        </div>
+
+                        <!-- Private Repository Option (Expandable) -->
+                        <div class="private-repo-toggle">
+                            <button type="button" class="toggle-link" onclick="togglePrivateRepo()" id="private-toggle-btn">
+                                <span>🔒 Working on a Private Repo? (Optional)</span>
+                                <span id="toggle-chevron">▾</span>
+                            </button>
+                            <div id="private-repo-pane" style="display: none; margin-top: 10px;">
+                                <div class="token-input-group">
+                                    <input
+                                        type="password"
+                                        id="github-token"
+                                        placeholder="GitHub Personal Access Token (ghp_... or github_pat_...)"
+                                        autocomplete="off"
+                                    >
+                                    <span class="token-hint">
+                                        💡 <strong>Your token stays in your session:</strong> Passed securely in-memory for this run to read private code and create the branch/PR. Never stored on disk or logged.
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     </form>
 
@@ -219,17 +240,33 @@
                             <span id="score-value">100</span><span class="pct">%</span>
                         </div>
                         <div class="score-meta">
-                            <div id="score-title" class="score-meta-title verified-text">100% Trust Score — Verified</div>
+                            <div id="score-title" class="score-meta-title verified-text">100% Trust Score — All Tests Passed</div>
                             <div id="score-desc" class="score-meta-desc">
-                                All code modifications and functional claims have been cryptographically matched against sandbox execution outputs.
+                                Every code change and claim was tested in an isolated sandbox and verified with real logs and cryptographic hashes.
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Cryptographic Proof Banner -->
+                    <div id="merkle-attestation-banner" class="merkle-banner" style="display: flex; align-items: center; justify-content: space-between; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 12px 16px; margin: 16px 0;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 1.5rem;">🛡️</span>
+                            <div>
+                                <div style="font-weight: 600; font-size: 0.88rem; color: #93c5fd;">Verifiable Evidence Trail (Merkle Root)</div>
+                                <div id="merkle-root-display" style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-secondary);">Merkle Root: canonical SHA-256 tree</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="downloadAuditManifest()" title="Download full JSON report with all test logs and hashes">
+                                <span>📦 Download Proof (JSON)</span>
+                            </button>
                         </div>
                     </div>
 
                     <!-- Claims Verification Table -->
                     <div class="claims-table-card">
                         <div class="claims-table-title">
-                            <span>📜 Governed Claims & Artifact Linkages</span>
+                            <span>📜 Verified Claims & Test Results</span>
                             <span id="claims-count-badge" style="font-size: 0.75rem; color: var(--text-muted);"></span>
                         </div>
                         <table class="claims-table">
@@ -335,10 +372,26 @@
             }
         }
 
+        function togglePrivateRepo() {
+            const pane = document.getElementById('private-repo-pane');
+            const chevron = document.getElementById('toggle-chevron');
+            if (pane.style.display === 'none') {
+                pane.style.display = 'block';
+                chevron.textContent = '▴';
+                document.getElementById('github-token').focus();
+            } else {
+                pane.style.display = 'none';
+                chevron.textContent = '▾';
+            }
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const issueUrl = issueInput.value.trim();
             if (!issueUrl) return;
+
+            const tokenInput = document.getElementById('github-token');
+            const customToken = tokenInput ? tokenInput.value.trim() : '';
 
             // Reset UI states
             submitBtn.querySelector('.btn-text').style.display = 'none';
@@ -350,10 +403,15 @@
             resetPipeline();
 
             try {
+                const payload = { issue_url: issueUrl };
+                if (customToken) {
+                    payload.github_token = customToken;
+                }
+
                 const resp = await fetch('/api/resolve-issue', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ issue_url: issueUrl }),
+                    body: JSON.stringify(payload),
                 });
 
                 const data = await resp.json();
@@ -494,6 +552,12 @@
                 try {
                     const reportResp = await fetch(`/api/report/${currentRunId}`);
                     cachedReport = await reportResp.json();
+                    if (cachedReport && cachedReport.merkle_root) {
+                        const rootDisplay = document.getElementById('merkle-root-display');
+                        if (rootDisplay) {
+                            rootDisplay.textContent = `Merkle Root: ${cachedReport.merkle_root} · Signature: ${cachedReport.attestation_signature || 'Verified'}`;
+                        }
+                    }
                 } catch (err) {
                     console.error('Failed to load report:', err);
                 }
@@ -756,6 +820,11 @@
         function downloadReport() {
             if (!currentRunId) return;
             window.open(`/api/report/${currentRunId}/markdown`, '_blank');
+        }
+
+        function downloadAuditManifest() {
+            if (!currentRunId) return;
+            window.open(`/api/report/${currentRunId}`, '_blank');
         }
 
         function resetButton() {

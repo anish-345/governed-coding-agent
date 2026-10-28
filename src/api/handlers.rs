@@ -14,6 +14,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize)]
 pub struct ResolveIssueRequest {
     pub issue_url: String,
+    #[serde(default)]
+    pub github_token: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,9 +51,15 @@ pub async fn resolve_issue(
     State(state): State<AppState>,
     Json(payload): Json<ResolveIssueRequest>,
 ) -> Result<Json<ResolveIssueResponse>, AppError> {
-    tracing::info!(issue_url = %payload.issue_url, "Received resolve-issue request");
+    tracing::info!(
+        issue_url = %payload.issue_url,
+        has_custom_token = payload.github_token.is_some(),
+        "Received resolve-issue request"
+    );
 
-    let run_id = state.orchestrator.start_run(payload.issue_url);
+    let run_id = state
+        .orchestrator
+        .start_run_with_token(payload.issue_url, payload.github_token);
 
     Ok(Json(ResolveIssueResponse {
         run_id,
