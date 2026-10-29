@@ -5,7 +5,7 @@
 - **Tagline:** The AI coding agent that actually proves its code works — runs tests in a sandbox, heals its own bugs, and gives you proof you can trust.
 - **Track:** Coding and Agentic Engineering Track
 - **Partner Awards Applied For:** Best Use of Tavily ($3,000 Award)
-- **Repository URL:** `https://github.com/YOUR_USERNAME/governed-coding-agent`
+- **Repository URL:** `https://github.com/anish-345/governed-coding-agent`
 - **Video Demo URL:** `https://youtu.be/YOUR_VIDEO_ID`
 - **Working Demo URL:** `http://localhost:8080` *(Runs locally via `cargo run -- serve` or Docker)*
 

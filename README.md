@@ -68,7 +68,7 @@ flowchart LR
 
 ### 1. Clone & Configure
 ```bash
-git clone https://github.com/YOUR_USERNAME/governed-coding-agent.git
+git clone https://github.com/anish-345/governed-coding-agent.git
 cd governed-coding-agent
 cp .env.example .env
 ```
