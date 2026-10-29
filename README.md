@@ -11,7 +11,7 @@
 [![NVIDIA](https://img.shields.io/badge/NVIDIA-Nemotron--3--Super--120B-76b900.svg)](https://build.nvidia.com/)
 [![Nebius](https://img.shields.io/badge/Nebius-Token%20Factory-4f8cff.svg)](https://nebius.com/)
 [![Tavily](https://img.shields.io/badge/Tavily-Live%20Grounding-8b5cf6.svg)](https://tavily.com/)
-[![Tests](https://img.shields.io/badge/tests-13%2F13%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-14%2F14%20passing-brightgreen.svg)]()
 
 ---
 
