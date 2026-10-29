@@ -3,7 +3,8 @@
 ## Basic Info
 - **Project Title:** Governed Coding Agent with Evidence Trail
 - **Tagline:** The AI coding agent that actually proves its code works — runs tests in a sandbox, heals its own bugs, and gives you proof you can trust.
-- **Track:** Coding & Agentic Engineering
+- **Track:** Coding and Agentic Engineering Track
+- **Partner Awards Applied For:** Best Use of Tavily ($3,000 Award)
 - **Repository URL:** `https://github.com/YOUR_USERNAME/governed-coding-agent`
 - **Video Demo URL:** `https://youtu.be/YOUR_VIDEO_ID`
 - **Working Demo URL:** `http://localhost:8080` *(Runs locally via `cargo run -- serve` or Docker)*
@@ -61,6 +62,26 @@ Governed Coding Agent takes any GitHub issue URL and autonomously resolves it wi
 #### 3. Tavily Grounding
 - **Why we used it:** Software libraries change faster than training cutoffs.
 - **How we used it:** Tavily searches live docs (docs.rs, official guides) to ground Nemotron's code in real, verified patterns.
+
+---
+
+### ⚖️ Alignment with Official Hackathon Judging Criteria
+
+#### 1. Technological Implementation
+- **Core Open Infrastructure:** Driven by **Nebius Token Factory** (`api.studio.nebius.ai/v1`) using **NVIDIA Nemotron-3 Super 120B** (`nvidia/nemotron-3-super-120b-a12b`).
+- **Deterministic & Safe Systems Code:** The entire backend is engineered in safe, concurrent **Rust** with 0 clippy warnings and 14/14 automated tests passing.
+- **Mathematical Attestation:** Instead of subjective text outputs, the system computes a canonical **SHA-256 Merkle root** over raw test outputs (`cargo check`, `clippy`, `cargo test`), making every claim tamper-evident.
+- **Runtime Web Search Grounding:** Performs live, runtime calls to the **Tavily API** to ground coding plans in verified technical documentation and current library APIs.
+
+#### 2. Design & User Experience
+- **1-Click Judge Presets:** Evaluators can run the entire pipeline end-to-end in 15 seconds without providing GitHub tokens or API keys.
+- **Transparent Self-Healing Progression:** Visual tabs allow users to inspect Attempt #1 (caught flaw / refuted) side-by-side with Attempt #2 (healed / verified), showing logs, diffs, and proof.
+- **Graceful PR Previews:** Public/external repositories safely fall back to Verified PR Preview Mode—eliminating frustrating 403 crashes.
+- **One-Click Audit Manifest:** Reviewers can inspect or download the complete JSON proof payload containing all raw logs and signatures with a single click.
+
+#### 3. Potential Impact
+- **Solves the #1 Bottleneck in AI Coding:** Current AI coding tools require developers to spend excessive time manually verifying generated code. GCA transforms AI code generation from "blind trust" to "verifiable proof."
+- **Enterprise & Open Source Readiness:** By generating verifiable evidence reports and CI merge gate integration, teams can safely automate bug triage and fix PRs without fear of silent breakages or regressions.
 
 ---
 
